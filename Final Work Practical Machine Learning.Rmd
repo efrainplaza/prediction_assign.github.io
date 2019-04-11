@@ -1,0 +1,119 @@
+---
+title: "Final Project - Practical Machine Learning"
+output: html_document
+---
+
+#### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+Based on this data we will be developing a model that will predict the quality of the exercise using test data provided as input.
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#### Initializing Libraries and Reading the data from Source Site
+
+```{r,warning=FALSE,message=FALSE}
+library(RCurl)  
+library(MASS)  
+library(stringr)  
+library(randomForest)  
+library(forecast)  
+library(ISLR)  
+library(lubridate)  
+library(caret)  
+library(dplyr)  
+library(magrittr)  
+library(rattle)  
+library(rpart.plot)  
+library(rpart)  
+library(compare)
+setwd("C:/Data/R") 
+## Reading the data from Source Site
+URLTrain <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+x <- getURL(URLTrain)
+TrainSet <- read.csv(textConnection(x),stringsAsFactors = F)
+URLTest <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+y <- getURL(URLTest)
+TestSet <- read.csv(textConnection(y),stringsAsFactors = F)
+TrainSet$classe <- factor(TrainSet$classe)
+```
+#### Applying some data reorganizing and cleaning
+
+
+```{r,warning=FALSE,message=FALSE}
+##Determine which variables are all null in test set to delete from train set
+allmisscols <- apply(TestSet,2, function(x)all(is.na(x)))
+## Clean test and train set and add the classe column back 
+TestSetClean <- TestSet[ ,!allmisscols] 
+TrainSetClean <- TrainSet[,!allmisscols]
+TrainSetClean <- data.frame(TrainSetClean,TrainSet$classe)
+##Eliminate useless columns in both sets
+TrainSetClean <- TrainSetClean[, -c(1:7)]
+TestSetClean[1,] <- TestSetClean[, -c(1:7)]
+TrainSet2 <- TrainSetClean
+TrainSet2 <- mutate_if(TrainSet2,is.character,as.factor)
+```
+#### Cross-validation in Trainset2  *** 
+```{r,warning=FALSE,message=FALSE}
+## Applying Cross-validation in Trainset2  ***
+inTrain <- createDataPartition(y=TrainSet2$classe, p=0.7, list = FALSE)
+training <- TrainSet2[inTrain,]
+testing <- TrainSet2[-inTrain,]
+```
+####*   Running method rpart - Classification Model    *****
+set.seed(4545)
+rpartfit <- train(classe ~ .,data=training, method="rpart")
+save(rpartfit,file="rpartfit.RData")
+```{r,warning=FALSE,message=FALSE}
+setwd("C:/Data/R")
+library(rattle)  
+library(rpart.plot)  
+library(rpart)
+load("rpartfit.RData")
+fancyRpartPlot(rpartfit$finalModel)
+```
+
+
+####   Checking the quality of the method rpart - Classification Model
+
+```{r,warning=FALSE,message=FALSE}
+confusionMatrix(predict(rpartfit,testing),testing$classe)
+```
+
+Note that the accuracy of the model is very low, in this case 0.534 %. The matches between the model predictions and the testing dataset (over the diagonal in the matrix) are poor, there are lots of matches outside the diagonal.
+
+####*   Running Random Forrest Model    *****
+```{r,warning=FALSE,message=FALSE}
+## modrf <- train(classe~.,method="rf",data=training, na.action = na.omit)
+##save(modrf,file="modrf.RData")
+setwd("C:/Data/R")
+load("modrf.RData")
+```
+
+####*   Random Forrest Model - Graphs    *****
+```{r,warning=FALSE,message=FALSE}
+plot(modrf)
+##Note: predictors peak at N:27
+plot(modrf$finalModel)
+```
+
+
+#####*   This table presents the most important variables in the Model    *****
+
+```{r,warning=FALSE,message=FALSE}
+plot(varImp(modrf), top = 20)
+```
+
+
+####   Checking the quality of the method Random Forrest
+```{r,warning=FALSE,message=FALSE}
+confusionMatrix(predict(modrf,testing),testing$classe)
+##Note: Accuracy : 0.99
+```
+####   Conclusion
+In this specific project it was really important to have the necessary skills to identify the most important columns of data based, not only in the available records for training the model, but also on the data to be tested once the model was defined. After some trials we identified, as demonstrated by the use of Confusion Matrices, which was the most accurate model - Random Forrest - to be applied to the data available  
